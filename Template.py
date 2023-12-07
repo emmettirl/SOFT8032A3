@@ -32,8 +32,8 @@ def main():
     df = pd.read_csv("weather.csv")
     # print(df.head())
 
-    task1(df)
-    # task2(df)
+    # task1(df)
+    task2(df)
     # task3(df)
     # task4(df)
     # task5(df)
@@ -74,7 +74,44 @@ def  task1(df):
 
 def task2(df):
     t2_df = df.copy(deep=True)
+    result_df = pd.DataFrame({'D': [], 'result': []})
 
+
+    for D in range (1, 12):
+        # ensure that results are split into ranges, using &
+        greater_than_D = t2_df[(abs(t2_df['Pressure9am'] - t2_df['Pressure3pm']) >= D) & (abs(t2_df['Pressure9am'] - t2_df['Pressure3pm']) < D+1)]
+        vc_greater_than_D = greater_than_D['RainTomorrow'].value_counts()
+        result = vc_greater_than_D['Yes'] / vc_greater_than_D['No']
+        result_df.loc[len(result_df)+1] = {'D': D, 'result': result}
+
+    # slightly different logic for last line, as I don't want to cut off differences greater than 13
+    greater_than_D = t2_df[(abs(t2_df['Pressure9am'] - t2_df['Pressure3pm']) >= 12)]
+    vc_greater_than_D = greater_than_D['RainTomorrow'].value_counts()
+    result = vc_greater_than_D['Yes'] / vc_greater_than_D['No']
+    result_df.loc[len(result_df)+1] = {'D': 12, 'result': result}
+    # print (result_df)
+
+
+
+    # plot
+    index = result_df['D']
+    value = result_df['result']
+
+    plt.figure(figsize=(10, 7))
+    plt.plot(index, value)
+    plt.title('D vs Rainy Days/Non Rainy Days')
+    plt.xlabel('(D) The minimum difference between the pressures recorded at 9am and 3pm')
+    plt.ylabel('Number of rainy days divided by number of non rainy days')
+
+    minimumY = min(value * 0.8)
+    maximumY = max(value * 1.2)
+    minimumX = min(index - 1)
+    maximumX = max(index + 1)
+    plt.ylim(bottom=minimumY)
+    plt.ylim(top=maximumY)
+    plt.xlim(left=minimumX)
+    plt.xlim(right=maximumX)
+    plt.show()
 
 
 def task3(df):
