@@ -41,8 +41,8 @@ def main():
     # task1(df)
     # task2(df)
     # task3(df)
-    task4(df)
-    # task5(df)
+    # task4(df)
+    task5(df)
     # task6(df)
     # task7(df)
 
@@ -206,32 +206,59 @@ def task4(df):
     encoder = OneHotEncoder(sparse=False)
     X_wind_direction_encoded = encoder.fit_transform(X_wind_direction)
 
-    X_list = [X_pressure, X_wind_direction_encoded]
+    X_dict = {"Pressure": X_pressure, "Wind Direction": X_wind_direction_encoded}
 
     y = sub_df['RainTomorrow']
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
 
-    for X in X_list:
-        X_train, X_test, y_train, y_test  = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+    for X_key, X_value in X_dict.items():
+        X_train, X_test, y_train, y_test  = train_test_split(X_value, y_encoded, test_size=0.333, random_state=42)
 
         model = DecisionTreeClassifier(random_state=42, max_depth=20)
         model.fit(X_train, y_train)
 
-        print(X)
-        print("Training Accuracy:", model.score(X_train, y_train))
-        print("Test Accuracy:", model.score(X_test, y_test))
+        print("\n", X_key)
+        print("Training Accuracy:", f"{model.score(X_train, y_train):.5f}")
+        print("Test Accuracy:", f"{model.score(X_test, y_test):.5f}")
 
 
+    #  Running this function provides the following results:
+
+    # Pressure:
+    # Training Accuracy: 0.77803
+    # Test Accuracy: 0.75241
+    #
+    # Wind Direction:
+    # Training Accuracy: 0.75991
+    # Test Accuracy: 0.75536
+
+    # Based on the above, we can see that on training data, The model based on Pressure more accurately identifies seen
+    # data. That said, the model based on wind direction is slightly more accurate on unseen data. I would conclude from
+    # this that the pressure based model may be slightly more over-fitted than the Wind Direction Model.
+
+    # With regard to climate data, which has a wide variety of combinations I would lean to making use of the Wind
+    # direction model to predict whether it will rain tomorrow, as it is slightly more capable with unseen data,
 
 def task5(df):
     t5_df = df.copy(deep=True)
     sub_df = t5_df[[
         'RainTomorrow',
-        'Wind-Dir9am',
+        'WindDir9am',
         'WindGustDir',
         'WindDir3pm'
     ]]
+
+    sub_df=sub_df.dropna()
+
+    sub_df_maxLen2 = sub_df[
+        (sub_df['WindDir9am'].apply(len) < 3) &
+        (sub_df['WindDir3pm'].apply(len) < 3) &
+        (sub_df['WindGustDir'].apply(len) < 3)
+        ]
+
+    sub_df_maxLen2.to_csv('test.csv', index=False)
+
 
 
 def task6(df):
