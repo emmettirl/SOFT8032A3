@@ -10,20 +10,17 @@ Cohort: evSD3
 
 """
 
-import pandas as pd
-import numpy as np
-import sklearn as skl
-import matplotlib as mpl
-
-# Use the below few lines to ignore the warning messages
-
 import warnings
 
+import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.decomposition import TruncatedSVD
+from sklearn.model_selection import train_test_split, cross_validate
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.tree import DecisionTreeClassifier
+
+# Use the below few lines to ignore the warning messages
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -75,6 +72,7 @@ def task1(df):
 
     minimumY = min(count * 0.50)
     plt.ylim(bottom=minimumY)
+    plt.tight_layout()
     plt.show()
 
 # todo write analysis comments
@@ -115,6 +113,7 @@ def task2(df):
     plt.ylim(top=maximumY)
     plt.xlim(left=minimumX)
     plt.xlim(right=maximumX)
+    plt.tight_layout()
     plt.show()
 
 
@@ -164,6 +163,7 @@ def task3(df):
     plt.ylabel('Feature Importance')
     plt.title('Feature Importances vs Max Depth of Decision Tree')
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
     print("Line plot generated")
@@ -237,11 +237,12 @@ def task4(df):
     # data. That said, the model based on wind direction is slightly more accurate on unseen data. I would conclude from
     # this that the pressure based model may be slightly more over-fitted than the Wind Direction Model.
 
-    # With regard to climate data, which has a wide variety of combinations I would lean to making use of the Wind
+    # With regard to climate data, which has a wide variety of combinations I would lean towards making use of the Wind
     # direction model to predict whether it will rain tomorrow, as it is slightly more capable with unseen data,
 
-def task5(df):
-    t5_df = df.copy(deep=True)
+
+def task5(results_df):
+    t5_df = results_df.copy(deep=True)
     sub_df = t5_df[[
         'RainTomorrow',
         'WindDir9am',
@@ -249,17 +250,81 @@ def task5(df):
         'WindDir3pm'
     ]]
 
-    sub_df=sub_df.dropna()
+    sub_df_clean = sub_df.dropna()
 
-    sub_df_maxLen2 = sub_df[
-        (sub_df['WindDir9am'].apply(len) < 3) &
-        (sub_df['WindDir3pm'].apply(len) < 3) &
-        (sub_df['WindGustDir'].apply(len) < 3)
+    sub_df_max_len2 = sub_df_clean[
+        (sub_df_clean['WindDir9am'].apply(len) < 3) &
+        (sub_df_clean['WindDir3pm'].apply(len) < 3) &
+        (sub_df_clean['WindGustDir'].apply(len) < 3)
         ]
 
-    sub_df_maxLen2.to_csv('test.csv', index=False)
+    X = sub_df.drop('RainTomorrow', axis=1)
+    y = sub_df['RainTomorrow']
+
+    one_hot_encoder = OneHotEncoder()
+    X_encoded = one_hot_encoder.fit_transform(X)
+
+    svd = TruncatedSVD(n_components=25) # processing is very slow, reducing dimensionality to try to speed up.
+    X_reduced = svd.fit_transform(X_encoded)
+
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(y)
+
+    depth_list = []
+    dtc_train_results = []
+    dtc_test_results = []
+    knc_train_results = []
+    knc_test_results = []
+
+    upper_range = 11
+    progressbar(0, upper_range*2-1)
+
+    for i in range(1, upper_range):
+        depth_list = i
+
+        dtc = DecisionTreeClassifier(random_state=42, max_depth=i)
+        knc = KNeighborsClassifier(n_neighbors=i, n_jobs=-1, algorithm='brute')
+
+        dtc_scores = cross_validate (dtc, X_reduced, y_encoded, cv=5, return_train_score=True)
+        dtc_train_results.append(dtc_scores['train_score'])
+        dtc_test_results.append(dtc_scores['test_score'])
+        progressbar(i*2-1, upper_range*2-1)
 
 
+        knc_scores = cross_validate (knc, X_reduced, y_encoded, cv=5, return_train_score=True, n_jobs=-1)  # research, trying to speed up processing https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html
+        knc_train_results.append(knc_scores['train_score'])
+        knc_test_results.append(knc_scores['test_score'])
+        progressbar(i*2, upper_range*2-1)
+
+    results_df = pd.DataFrame({
+        'Depth/Neighbours': depth_list,
+        'dtc_train_results': dtc_train_results,
+        'dtc_test_results': dtc_test_results,
+        'knc_train_results': knc_train_results,
+        'knc_test_results': knc_test_results
+    })
+    plt.figure(figsize=(10, 8))
+
+    # Plot for Decision Tree Classifier
+    plt.subplot(2, 1, 1)
+    plt.plot(results_df['Depth/Neighbours'], results_df['dtc_train_results'], label='Training Accuracy')
+    plt.plot(results_df['Depth/Neighbours'], results_df['dtc_test_results'], label='Test Accuracy')
+    plt.title('Decision Tree Classifier Accuracy')
+    plt.xlabel('Parameter Value')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    # Plot for KNeighbors Classifier
+    plt.subplot(2, 1, 2)
+    plt.plot(results_df['Depth/Neighbours'], results_df['knc_train_results'], label='Training Accuracy')
+    plt.plot(results_df['Depth/Neighbours'], results_df['knc_test_results'], label='Test Accuracy')
+    plt.title('KNeighbors Classifier Accuracy')
+    plt.xlabel('Parameter Value')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
 
 def task6(df):
     t6_df = df.copy(deep=True)
