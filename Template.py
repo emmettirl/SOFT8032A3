@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
+from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split, cross_validate
 from sklearn.neighbors import KNeighborsClassifier
@@ -358,6 +359,8 @@ def task6(df):
     for column in cleaned_df.columns:
         cleaned_df[column] = scaler.fit_transform(cleaned_df[[column]])
 
+
+
     lowerRange = 2
     upperRange = 9
     kRange = range(lowerRange, upperRange)
@@ -378,13 +381,16 @@ def task6(df):
     plt.legend()
     plt.show()
 
-# train model
+    svd = TruncatedSVD(n_components=5) # processing is very slow, reducing dimensionality to try to speed up.
+    X = svd.fit_transform(cleaned_df)
+
+    # train model
     for i in kRange:
-        kmeans = KMeans(n_clusters=i)
-        kmeans.fit(cleaned_df)
+        kmeans = KMeans(n_clusters=i, n_init=5, max_iter=100)
+        kmeans.fit(X)
 
         distortionResults.append(kmeans.inertia_)
-        silhouetteResults.append(silhouette_score(cleaned_df, kmeans.labels_))
+        silhouetteResults.append(silhouette_score(X, kmeans.labels_))
         progressbar(i - lowerRange, upperRange - lowerRange)
 
     # elbow method
