@@ -397,9 +397,9 @@ def task6(df):
 
     # doesn't give a very clear shape.
     # It's hard to estimate based on this method, but it might be around 6 clusters.
-    # Will try the silhouette method.
 
-    plt.plot(range(kRange), silhouetteResults)
+    # Silhouette method.
+    plt.plot(kRange, silhouetteResults)
     plt.xlabel('Number of clusters')
     plt.ylabel('Silhouette Score')
     plt.show()
@@ -417,7 +417,6 @@ def progressbar(i, upper_range):
         print(progress_string)
     else:
         print(progress_string, end='')
-
 
 if __name__ == '__main__':
     main()
