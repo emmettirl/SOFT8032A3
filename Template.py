@@ -12,12 +12,14 @@ Cohort: evSD3
 
 import warnings
 
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.decomposition import TruncatedSVD
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split, cross_validate
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
 # Use the below few lines to ignore the warning messages
@@ -39,8 +41,8 @@ def main():
     # task2(df)
     # task3(df)
     # task4(df)
-    task5(df)
-    # task6(df)
+    # task5(df)
+    task6(df)
     # task7(df)
 
 
@@ -74,6 +76,7 @@ def task1(df):
     plt.ylim(bottom=minimumY)
     plt.tight_layout()
     plt.show()
+
 
 # todo write analysis comments
 def task2(df):
@@ -192,7 +195,6 @@ def task4(df):
 
     X_sub_df = sub_df.drop('RainTomorrow', axis=1)
 
-
     X_pressure = X_sub_df[[
         'Pressure9am',
         'Pressure3pm'
@@ -213,7 +215,7 @@ def task4(df):
     y_encoded = label_encoder.fit_transform(y)
 
     for X_key, X_value in X_dict.items():
-        X_train, X_test, y_train, y_test  = train_test_split(X_value, y_encoded, test_size=0.333, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_value, y_encoded, test_size=0.333, random_state=42)
 
         model = DecisionTreeClassifier(random_state=42, max_depth=20)
         model.fit(X_train, y_train)
@@ -222,8 +224,7 @@ def task4(df):
         print("Training Accuracy:", f"{model.score(X_train, y_train):.5f}")
         print("Test Accuracy:", f"{model.score(X_test, y_test):.5f}")
 
-
-    #  Running this function provides the following results:
+    # Running this function provides the following results:
 
     # Pressure:
     # Training Accuracy: 0.77803
@@ -258,14 +259,14 @@ def task5(results_df):
         (sub_df_clean['WindGustDir'].apply(len) < 3)
         ]
 
-    X = sub_df.drop('RainTomorrow', axis=1)
-    y = sub_df['RainTomorrow']
+    X = sub_df_max_len2.drop('RainTomorrow', axis=1)
+    y = sub_df_max_len2['RainTomorrow']
 
     one_hot_encoder = OneHotEncoder()
     X_encoded = one_hot_encoder.fit_transform(X)
 
-    svd = TruncatedSVD(n_components=25) # processing is very slow, reducing dimensionality to try to speed up.
-    X_reduced = svd.fit_transform(X_encoded)
+    # svd = TruncatedSVD(n_components=24) # processing is very slow, reducing dimensionality to try to speed up.
+    # X_reduced = svd.fit_transform(X_encoded)
 
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
@@ -277,54 +278,48 @@ def task5(results_df):
     knc_test_results = []
 
     upper_range = 11
-    progressbar(0, upper_range*2-1)
+    progressbar(0, upper_range * 2 - 1)
 
     for i in range(1, upper_range):
-        depth_list = i
+        depth_list.append(i)
 
         dtc = DecisionTreeClassifier(random_state=42, max_depth=i)
         knc = KNeighborsClassifier(n_neighbors=i, n_jobs=-1, algorithm='brute')
 
-        dtc_scores = cross_validate (dtc, X_reduced, y_encoded, cv=5, return_train_score=True)
-        dtc_train_results.append(dtc_scores['train_score'])
-        dtc_test_results.append(dtc_scores['test_score'])
-        progressbar(i*2-1, upper_range*2-1)
+        dtc_scores = cross_validate(dtc, X_encoded, y_encoded, cv=5, return_train_score=True)
+        dtc_train_results.append(np.mean(dtc_scores['train_score']))
+        dtc_test_results.append(np.mean(dtc_scores['test_score']))
+        progressbar(i * 2 - 1, upper_range * 2 - 1)
 
+        knc_scores = cross_validate(knc, X_encoded, y_encoded, cv=5, return_train_score=True,
+                                    n_jobs=-1)  # research, trying to speed up processing https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html
+        knc_train_results.append(np.mean(knc_scores['train_score']))
+        knc_test_results.append(np.mean(knc_scores['test_score']))
+        progressbar(i * 2, upper_range * 2 - 1)
 
-        knc_scores = cross_validate (knc, X_reduced, y_encoded, cv=5, return_train_score=True, n_jobs=-1)  # research, trying to speed up processing https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html
-        knc_train_results.append(knc_scores['train_score'])
-        knc_test_results.append(knc_scores['test_score'])
-        progressbar(i*2, upper_range*2-1)
-
-    results_df = pd.DataFrame({
-        'Depth/Neighbours': depth_list,
-        'dtc_train_results': dtc_train_results,
-        'dtc_test_results': dtc_test_results,
-        'knc_train_results': knc_train_results,
-        'knc_test_results': knc_test_results
-    })
     plt.figure(figsize=(10, 8))
 
     # Plot for Decision Tree Classifier
     plt.subplot(2, 1, 1)
-    plt.plot(results_df['Depth/Neighbours'], results_df['dtc_train_results'], label='Training Accuracy')
-    plt.plot(results_df['Depth/Neighbours'], results_df['dtc_test_results'], label='Test Accuracy')
-    plt.title('Decision Tree Classifier Accuracy')
+    plt.plot(depth_list, dtc_train_results, label='Decision Tree Training Accuracy')
+    plt.plot(depth_list, dtc_test_results, label='Decision Tree Test Accuracy')
+    plt.title('Tree Classifier Accuracy')
     plt.xlabel('Parameter Value')
     plt.ylabel('Accuracy')
     plt.legend()
 
     # Plot for KNeighbors Classifier
     plt.subplot(2, 1, 2)
-    plt.plot(results_df['Depth/Neighbours'], results_df['knc_train_results'], label='Training Accuracy')
-    plt.plot(results_df['Depth/Neighbours'], results_df['knc_test_results'], label='Test Accuracy')
-    plt.title('KNeighbors Classifier Accuracy')
+    plt.plot(depth_list, knc_train_results, label='KNeighbors Training Accuracy')
+    plt.plot(depth_list, knc_test_results, label='KNeighbors Test Accuracy')
+    plt.title('Classifier Accuracy')
     plt.xlabel('Parameter Value')
     plt.ylabel('Accuracy')
     plt.legend()
 
     plt.tight_layout()
     plt.show()
+
 
 def task6(df):
     t6_df = df.copy(deep=True)
@@ -342,6 +337,45 @@ def task6(df):
         'Temp3pm'
     ]]
 
+    cleaned_df = sub_df.dropna()
+
+    scaler = StandardScaler()
+    scaled_df = scaler.fit_transform(cleaned_df)
+
+    lowerRange = 2
+    upperRange = 9
+    kRange = range(lowerRange, upperRange)
+
+    progressbar(0, upperRange - lowerRange)
+
+    distortionResults = []
+    silhouetteResults = []
+
+    for i in kRange:
+        kmeans = KMeans(n_clusters=i)
+        kmeans.fit(scaled_df)
+
+        distortionResults.append(kmeans.inertia_)
+        silhouetteResults.append(silhouette_score(scaled_df, kmeans.labels_))
+        progressbar(i - lowerRange, upperRange - lowerRange)
+
+    # elbow method
+    plt.figure(figsize=(10, 8))
+    plt.plot(kRange, distortionResults, 'bx-')
+    plt.xlabel('Clusters')
+    plt.ylabel('Distortion')
+    plt.title('The Elbow Method')
+    plt.show()
+
+    # doesn't give a very clear shape.
+    # It's hard to estimate based on this method, but it might be around 6 clusters.
+    # Will try the silhouette method.
+
+    plt.plot(range(2, 11), silhouetteResults)
+    plt.xlabel('Number of clusters')
+    plt.ylabel('Silhouette Score')
+    plt.show()
+
 
 def task7(df):
     t7_df = df.copy(deep=True)
@@ -350,7 +384,7 @@ def task7(df):
 def progressbar(i, upper_range):
     # Some functions in this project take some time to run due to loops.
     # This gives visual indication of progress
-    progress_string = f'\r{("#" * i)}{("_" * (upper_range - i))} {i} / {upper_range - 1}'
+    progress_string = f'\r{("#" * i)}{("_" * ((upper_range - 1) - i))} {i} / {upper_range - 1}'
     if i == upper_range - 1:
         print(progress_string)
     else:
